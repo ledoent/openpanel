@@ -108,7 +108,7 @@ jobs:
   build-api:
     if: github.ref == 'refs/heads/deploy' || github.event_name == 'workflow_dispatch'
     needs: test
-    runs-on: hetzner-k3s-ledoent
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
@@ -145,7 +145,7 @@ jobs:
   build-worker:
     if: github.ref == 'refs/heads/deploy' || github.event_name == 'workflow_dispatch'
     needs: test
-    runs-on: hetzner-k3s-ledoent
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
@@ -182,7 +182,7 @@ jobs:
   build-dashboard:
     if: github.ref == 'refs/heads/deploy' || github.event_name == 'workflow_dispatch'
     needs: test
-    runs-on: hetzner-k3s-ledoent
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
