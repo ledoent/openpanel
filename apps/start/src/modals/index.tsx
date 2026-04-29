@@ -11,6 +11,7 @@ import AddReference from './add-reference';
 import BillingSuccess from './billing-success';
 import type { ConfirmProps } from './confirm';
 import Confirm from './confirm';
+import CreatePAT from './create-pat';
 import CreateInvite from './create-invite';
 import DateRangerPicker from './date-ranger-picker';
 import DateTimePicker from './date-time-picker';
@@ -81,6 +82,7 @@ const modals = {
   SetupTwoFactor,
   DisableTwoFactor,
   RegenerateRecoveryCodes,
+  CreatePAT,
 };
 
 export const {
