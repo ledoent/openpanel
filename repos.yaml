@@ -12,7 +12,7 @@
 
 .:
   remotes:
-    origin: git@github.com:ledoent/openpanel.git
+    origin: https://github.com/ledoent/openpanel.git
     upstream: https://github.com/Openpanel-dev/openpanel.git
   merges:
     - upstream main

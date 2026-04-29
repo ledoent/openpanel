@@ -44,17 +44,16 @@ jobs:
           token: ${{ secrets.AGGREGATE_TOKEN }}
           fetch-depth: 0
 
-      - name: Add upstream remote
-        run: git remote add upstream https://github.com/Openpanel-dev/openpanel.git
-
-      - name: Fetch all remotes
-        run: git fetch --all
+      - name: Configure git credentials
+        run: |
+          # Inject token into credential store so gitaggregate HTTPS pushes work.
+          # gitaggregate reads origin URL from repos.yaml (must be HTTPS) and ignores
+          # any remote set-url done beforehand.
+          git config --global credential.helper store
+          echo "https://x-access-token:${{ secrets.AGGREGATE_TOKEN }}@github.com" > ~/.git-credentials
 
       - name: Run gitaggregate
-        run: |
-          # Override origin URL to use the token so the push succeeds
-          git remote set-url origin https://x-access-token:${{ secrets.AGGREGATE_TOKEN }}@github.com/ledoent/openpanel.git
-          gitaggregate -c repos.yaml -p
+        run: gitaggregate -c repos.yaml -p
 
       - name: Report
         run: |
