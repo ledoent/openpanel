@@ -1,0 +1,61 @@
+# Aggregate ledoent feature branches on top of upstream/main and push `deploy`.
+#
+# Triggers:
+#  - push to any feature/** branch (auto-aggregate on new commits)
+#  - workflow_dispatch (manual, e.g. after adding a new branch to repos.yaml)
+#
+# After pushing `deploy`, the `ci.yaml` workflow fires automatically.
+#
+# Requires:
+#  - AGGREGATE_TOKEN: GitHub PAT with `repo` scope (to push deploy branch
+#    and trigger downstream workflows — GITHUB_TOKEN pushes don't trigger them)
+
+name: Aggregate → deploy
+
+on:
+  push:
+    branches:
+      - "feature/**"
+    paths-ignore:
+      - "**.md"
+      - "repos.yaml"
+      - ".github/**"
+  workflow_dispatch:
+
+concurrency:
+  group: aggregate
+  cancel-in-progress: false  # never cancel an in-flight aggregate
+
+jobs:
+  aggregate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install git-aggregator
+        run: pip install git-aggregator
+
+      - name: Configure git
+        run: |
+          git config --global user.name  "ledoent-ci"
+          git config --global user.email "ci@ledoweb.com"
+
+      - name: Checkout fork (full history)
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.AGGREGATE_TOKEN }}
+          fetch-depth: 0
+
+      - name: Add upstream remote
+        run: git remote add upstream https://github.com/Openpanel-dev/openpanel.git
+
+      - name: Fetch all remotes
+        run: git fetch --all
+
+      - name: Run gitaggregate
+        run: |
+          # Override origin URL to use the token so the push succeeds
+          git remote set-url origin https://x-access-token:${{ secrets.AGGREGATE_TOKEN }}@github.com/ledoent/openpanel.git
+          gitaggregate -c repos.yaml -p
+
+      - name: Report
+        run: |
+          echo "deploy branch SHA: $(git rev-parse origin/deploy 2>/dev/null || echo 'not yet pushed')"

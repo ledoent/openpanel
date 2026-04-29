@@ -1,0 +1,21 @@
+# git-aggregator config — merges ledoent feature branches on top of upstream main
+# into a single `deploy` branch that CI builds into images.
+#
+# Usage (local):
+#   pip install git-aggregator
+#   gitaggregate -c repos.yaml -p
+#
+# Usage (CI):  see .github/workflows/aggregate.yaml
+#
+# Add new feature branches under `merges:` before the target line.
+# Keep upstream main first so feature branches always apply on top.
+
+.:
+  remotes:
+    origin: git@github.com:ledoent/openpanel.git
+    upstream: https://github.com/Openpanel-dev/openpanel.git
+  merges:
+    - upstream main
+    - origin feature/personal-access-tokens
+  target: origin deploy
+  force: true
