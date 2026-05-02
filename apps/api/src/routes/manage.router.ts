@@ -5,9 +5,12 @@ import { z } from 'zod';
 import * as controller from '@/controllers/manage.controller';
 import { listDashboards, listReports } from '@/controllers/insights.controller';
 import {
+  zClientRecord,
   zCreateClient,
   zCreateProject,
   zCreateReference,
+  zProject,
+  zReference,
   zUpdateClient,
   zUpdateProject,
   zUpdateReference,
@@ -16,6 +19,8 @@ import { validateManageRequest } from '@/utils/auth';
 import { activateRateLimiter } from '@/utils/rate-limiter';
 
 const idParam = z.object({ id: z.string() });
+const manageAuth = [{ ClientId: [], ClientSecret: [] }];
+const zSuccess = z.object({ success: z.literal(true) });
 
 const manageRouter: FastifyPluginAsyncZodOpenApi = async (fastify) => {
   await activateRateLimiter({
@@ -68,35 +73,71 @@ const manageRouter: FastifyPluginAsyncZodOpenApi = async (fastify) => {
   fastify.route({
     method: 'GET',
     url: '/projects',
-    schema: { tags: ['Manage'], description: 'List all projects for the organization.' },
+    schema: {
+      tags: ['Manage'],
+      description: 'List all projects for the organization.',
+      security: manageAuth,
+      response: { 200: z.object({ data: z.array(zProject) }) },
+    },
     handler: controller.listProjects,
   });
 
   fastify.route({
     method: 'GET',
     url: '/projects/:id',
-    schema: { params: idParam, tags: ['Manage'], description: 'Get a single project by ID.' },
+    schema: {
+      params: idParam,
+      tags: ['Manage'],
+      description: 'Get a single project by ID.',
+      security: manageAuth,
+      response: { 200: z.object({ data: zProject }) },
+    },
     handler: controller.getProject,
   });
 
   fastify.route({
     method: 'POST',
     url: '/projects',
-    schema: { body: zCreateProject, tags: ['Manage'], description: 'Create a new project and its first write client.' },
+    schema: {
+      body: zCreateProject,
+      tags: ['Manage'],
+      description: 'Create a new project and its first write client. Returns the plain client secret — store it immediately, it is not retrievable later.',
+      security: manageAuth,
+      response: {
+        200: z.object({
+          data: zProject.extend({
+            client: z.object({ id: z.string().uuid(), secret: z.string() }).nullable(),
+          }),
+        }),
+      },
+    },
     handler: controller.createProject,
   });
 
   fastify.route({
     method: 'PATCH',
     url: '/projects/:id',
-    schema: { params: idParam, body: zUpdateProject, tags: ['Manage'], description: 'Update project settings (name, domain, CORS, tracking options).' },
+    schema: {
+      params: idParam,
+      body: zUpdateProject,
+      tags: ['Manage'],
+      description: 'Update project settings (name, domain, CORS, tracking options).',
+      security: manageAuth,
+      response: { 200: z.object({ data: zProject }) },
+    },
     handler: controller.updateProject,
   });
 
   fastify.route({
     method: 'DELETE',
     url: '/projects/:id',
-    schema: { params: idParam, tags: ['Manage'], description: 'Soft-delete a project (scheduled for removal in 24 hours).' },
+    schema: {
+      params: idParam,
+      tags: ['Manage'],
+      description: 'Soft-delete a project (scheduled for removal in 24 hours).',
+      security: manageAuth,
+      response: { 200: zSuccess },
+    },
     handler: controller.deleteProject,
   });
 
@@ -104,35 +145,68 @@ const manageRouter: FastifyPluginAsyncZodOpenApi = async (fastify) => {
   fastify.route({
     method: 'GET',
     url: '/clients',
-    schema: { tags: ['Manage'], description: 'List all API clients for the organization, optionally filtered by project.' },
+    schema: {
+      tags: ['Manage'],
+      description: 'List all API clients for the organization, optionally filtered by project.',
+      security: manageAuth,
+      querystring: z.object({ projectId: z.string().optional() }),
+      response: { 200: z.object({ data: z.array(zClientRecord) }) },
+    },
     handler: controller.listClients,
   });
 
   fastify.route({
     method: 'GET',
     url: '/clients/:id',
-    schema: { params: idParam, tags: ['Manage'], description: 'Get a single API client by ID.' },
+    schema: {
+      params: idParam,
+      tags: ['Manage'],
+      description: 'Get a single API client by ID.',
+      security: manageAuth,
+      response: { 200: z.object({ data: zClientRecord }) },
+    },
     handler: controller.getClient,
   });
 
   fastify.route({
     method: 'POST',
     url: '/clients',
-    schema: { body: zCreateClient, tags: ['Manage'], description: 'Create a new API client (read, write, or root type) and return its generated secret.' },
+    schema: {
+      body: zCreateClient,
+      tags: ['Manage'],
+      description: 'Create a new API client (read, write, or root type). Returns the plain secret — store it immediately, it is not retrievable later.',
+      security: manageAuth,
+      response: {
+        200: z.object({ data: zClientRecord.extend({ secret: z.string() }) }),
+      },
+    },
     handler: controller.createClient,
   });
 
   fastify.route({
     method: 'PATCH',
     url: '/clients/:id',
-    schema: { params: idParam, body: zUpdateClient, tags: ['Manage'], description: 'Update an API client name.' },
+    schema: {
+      params: idParam,
+      body: zUpdateClient,
+      tags: ['Manage'],
+      description: 'Update an API client name.',
+      security: manageAuth,
+      response: { 200: z.object({ data: zClientRecord }) },
+    },
     handler: controller.updateClient,
   });
 
   fastify.route({
     method: 'DELETE',
     url: '/clients/:id',
-    schema: { params: idParam, tags: ['Manage'], description: 'Delete an API client.' },
+    schema: {
+      params: idParam,
+      tags: ['Manage'],
+      description: 'Delete an API client.',
+      security: manageAuth,
+      response: { 200: zSuccess },
+    },
     handler: controller.deleteClient,
   });
 
@@ -140,35 +214,66 @@ const manageRouter: FastifyPluginAsyncZodOpenApi = async (fastify) => {
   fastify.route({
     method: 'GET',
     url: '/references',
-    schema: { tags: ['Manage'], description: 'List annotation references for a project.' },
+    schema: {
+      tags: ['Manage'],
+      description: 'List annotation references for a project.',
+      security: manageAuth,
+      querystring: z.object({ projectId: z.string().optional() }),
+      response: { 200: z.object({ data: z.array(zReference) }) },
+    },
     handler: controller.listReferences,
   });
 
   fastify.route({
     method: 'GET',
     url: '/references/:id',
-    schema: { params: idParam, tags: ['Manage'], description: 'Get a single annotation reference by ID.' },
+    schema: {
+      params: idParam,
+      tags: ['Manage'],
+      description: 'Get a single annotation reference by ID.',
+      security: manageAuth,
+      response: { 200: z.object({ data: zReference }) },
+    },
     handler: controller.getReference,
   });
 
   fastify.route({
     method: 'POST',
     url: '/references',
-    schema: { body: zCreateReference, tags: ['Manage'] },
+    schema: {
+      body: zCreateReference,
+      tags: ['Manage'],
+      description: 'Create a new annotation reference for a project.',
+      security: manageAuth,
+      response: { 200: z.object({ data: zReference }) },
+    },
     handler: controller.createReference,
   });
 
   fastify.route({
     method: 'PATCH',
     url: '/references/:id',
-    schema: { params: idParam, body: zUpdateReference, tags: ['Manage'] },
+    schema: {
+      params: idParam,
+      body: zUpdateReference,
+      tags: ['Manage'],
+      description: 'Update an annotation reference.',
+      security: manageAuth,
+      response: { 200: z.object({ data: zReference }) },
+    },
     handler: controller.updateReference,
   });
 
   fastify.route({
     method: 'DELETE',
     url: '/references/:id',
-    schema: { params: idParam, tags: ['Manage'] },
+    schema: {
+      params: idParam,
+      tags: ['Manage'],
+      description: 'Delete an annotation reference.',
+      security: manageAuth,
+      response: { 200: zSuccess },
+    },
     handler: controller.deleteReference,
   });
 
@@ -180,6 +285,7 @@ const manageRouter: FastifyPluginAsyncZodOpenApi = async (fastify) => {
       params: z.object({ projectId: z.string() }),
       tags: ['Manage'],
       description: 'List all dashboards for a project.',
+      security: manageAuth,
     },
     handler: listDashboards,
   });
@@ -191,6 +297,7 @@ const manageRouter: FastifyPluginAsyncZodOpenApi = async (fastify) => {
       params: z.object({ projectId: z.string(), dashboardId: z.string() }),
       tags: ['Manage'],
       description: 'List all reports in a dashboard.',
+      security: manageAuth,
     },
     handler: listReports,
   });

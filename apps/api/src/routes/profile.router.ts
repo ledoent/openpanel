@@ -13,6 +13,7 @@ const profileRouter: FastifyPluginAsyncZodOpenApi = async (fastify) => {
     schema: {
       tags: ['Profile'],
       description: 'Identify or update a user profile.',
+      security: [{ ClientId: [], ClientSecret: [] }, { ClientId: [] }],
     },
     handler: controller.updateProfile,
   });
@@ -23,6 +24,7 @@ const profileRouter: FastifyPluginAsyncZodOpenApi = async (fastify) => {
     schema: {
       tags: ['Profile'],
       description: 'Increment a numeric property on a user profile.',
+      security: [{ ClientId: [], ClientSecret: [] }, { ClientId: [] }],
     },
     handler: controller.incrementProfileProperty,
   });
@@ -33,6 +35,7 @@ const profileRouter: FastifyPluginAsyncZodOpenApi = async (fastify) => {
     schema: {
       tags: ['Profile'],
       description: 'Decrement a numeric property on a user profile.',
+      security: [{ ClientId: [], ClientSecret: [] }, { ClientId: [] }],
     },
     handler: controller.decrementProfileProperty,
   });

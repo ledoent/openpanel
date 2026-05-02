@@ -11,6 +11,47 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { HttpError } from '@/utils/errors';
 
+// ─── Response schemas ────────────────────────────────────────────────────────
+
+export const zProject = z.object({
+  id: z.string(),
+  name: z.string(),
+  organizationId: z.string(),
+  eventsCount: z.number(),
+  types: z.array(z.enum(['website', 'app', 'backend'])),
+  domain: z.string().nullable(),
+  cors: z.array(z.string()),
+  crossDomain: z.boolean(),
+  allowUnsafeRevenueTracking: z.boolean(),
+  filters: z.unknown(),
+  deleteAt: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const zClientRecord = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  type: z.enum(['read', 'write', 'root']),
+  projectId: z.string().nullable(),
+  organizationId: z.string(),
+  ignoreCorsAndSecret: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const zReference = z.object({
+  id: z.string().uuid(),
+  title: z.string(),
+  description: z.string().nullable(),
+  date: z.string(),
+  projectId: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+// ─── Request validation schemas ──────────────────────────────────────────────
+
 // Validation schemas (exported for use in router)
 export const zCreateProject = z.object({
   name: z.string().min(1),

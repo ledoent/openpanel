@@ -367,7 +367,24 @@ export async function buildApp(
           { name: 'Insights', description: 'Query analytics data' },
           { name: 'Manage', description: 'Manage projects and clients' },
           { name: 'Event', description: 'Legacy event ingestion (deprecated, use /track)' },
+          { name: 'PAT', description: 'Personal access tokens (requires browser session)' },
         ],
+        components: {
+          securitySchemes: {
+            ClientId: {
+              type: 'apiKey',
+              in: 'header',
+              name: 'openpanel-client-id',
+              description: 'Your OpenPanel client ID (UUID). Required on all authenticated endpoints.',
+            },
+            ClientSecret: {
+              type: 'apiKey',
+              in: 'header',
+              name: 'openpanel-client-secret',
+              description: 'Your OpenPanel client secret. Required for `root` and `read` clients. Optional for `write` clients when the request origin matches the project\'s CORS allowlist.',
+            },
+          },
+        },
       },
       ...fastifyZodOpenApiTransformers,
       transform(args) {
