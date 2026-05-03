@@ -28,6 +28,13 @@ jobs:
           token: ${{ secrets.AGGREGATE_TOKEN }}
           fetch-depth: 0
 
+      - name: Configure git
+        run: |
+          git config user.name  "ledoent-ci"
+          git config user.email "ci@ledoweb.com"
+          git config credential.helper store
+          echo "https://x-access-token:${{ secrets.AGGREGATE_TOKEN }}@github.com" > ~/.git-credentials
+
       - name: Add upstream remote
         run: git remote add upstream https://github.com/Openpanel-dev/openpanel.git
 
@@ -37,14 +44,13 @@ jobs:
       - name: Rebase main on upstream/main
         id: rebase
         run: |
-          git config user.name  "ledoent-ci"
-          git config user.email "ci@ledoweb.com"
           # Rebase: replays our single extra commit (sync-upstream.yml) on top
-          # of whatever upstream main now points to.
+          # of whatever upstream main now points to. No merge commits ever.
           git rebase upstream/main
 
       - name: Push updated main
-        run: git push origin main
+        # Force-with-lease required after rebase (tip SHA changes).
+        run: git push origin main --force-with-lease
 
       - name: Dispatch aggregate workflow
         uses: actions/github-script@v7
