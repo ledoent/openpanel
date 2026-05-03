@@ -1,20 +1,25 @@
 # Aggregate ledoent feature branches on top of upstream/main and push `deploy`.
 #
 # Triggers:
+#  - push to ledoent branch (our CI customisations)
 #  - push to any feature/** branch (auto-aggregate on new commits)
 #  - workflow_dispatch (manual, e.g. after adding a new branch to repos.yaml)
 #
 # After pushing `deploy`, the `ci.yaml` workflow fires automatically.
 #
+# On failure a GitHub Issue is opened so maintainers know a manual rebase is needed.
+#
 # Requires:
-#  - AGGREGATE_TOKEN: GitHub PAT with `repo` scope (to push deploy branch
-#    and trigger downstream workflows — GITHUB_TOKEN pushes don't trigger them)
+#  - AGGREGATE_TOKEN: GitHub PAT with `repo` scope (to push deploy branch,
+#    trigger downstream workflows, and create issues — GITHUB_TOKEN pushes
+#    don't trigger them)
 
 name: Aggregate → deploy
 
 on:
   push:
     branches:
+      - ledoent
       - "feature/**"
     paths-ignore:
       - "**.md"
@@ -58,3 +63,36 @@ jobs:
       - name: Report
         run: |
           echo "deploy branch SHA: $(git rev-parse origin/deploy 2>/dev/null || echo 'not yet pushed')"
+
+  report-failure:
+    runs-on: ubuntu-latest
+    needs: aggregate
+    if: failure()
+    steps:
+      - name: Create failure issue
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.AGGREGATE_TOKEN }}
+          script: |
+            const run_url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const branch = context.ref.replace('refs/heads/', '');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[CI] Aggregate failed — manual rebase needed (${branch})`,
+              body: [
+                '## Aggregate failed',
+                '',
+                `The \`gitaggregate\` run triggered by **${branch}** could not merge cleanly.`,
+                'A manual rebase is required before the deploy branch can be rebuilt.',
+                '',
+                `**Failed run:** ${run_url}`,
+                '',
+                '## Steps to fix',
+                '1. Identify which branch has a conflict with upstream/main',
+                '2. Rebase that branch: `git rebase upstream/main`',
+                '3. Force-push the rebased branch',
+                '4. Re-run this workflow via Actions → Aggregate → deploy → Run workflow',
+              ].join('\n'),
+              labels: ['ci-failure', 'needs-rebase'],
+            });

@@ -16,6 +16,7 @@
     upstream: https://github.com/Openpanel-dev/openpanel.git
   merges:
     - upstream main
+    - origin ledoent
     - origin feature/personal-access-tokens
   target: origin deploy
   force: true
