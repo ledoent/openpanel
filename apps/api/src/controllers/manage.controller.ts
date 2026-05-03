@@ -24,9 +24,9 @@ export const zProject = z.object({
   crossDomain: z.boolean(),
   allowUnsafeRevenueTracking: z.boolean(),
   filters: z.unknown(),
-  deleteAt: z.string().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  deleteAt: z.coerce.string().nullable(),
+  createdAt: z.coerce.string(),
+  updatedAt: z.coerce.string(),
 });
 
 export const zClientRecord = z.object({
@@ -36,18 +36,18 @@ export const zClientRecord = z.object({
   projectId: z.string().nullable(),
   organizationId: z.string(),
   ignoreCorsAndSecret: z.boolean(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  createdAt: z.coerce.string(),
+  updatedAt: z.coerce.string(),
 });
 
 export const zReference = z.object({
   id: z.string().uuid(),
   title: z.string(),
   description: z.string().nullable(),
-  date: z.string(),
+  date: z.coerce.string(),
   projectId: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  createdAt: z.coerce.string(),
+  updatedAt: z.coerce.string(),
 });
 
 // ─── Request validation schemas ──────────────────────────────────────────────
