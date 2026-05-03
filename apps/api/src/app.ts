@@ -383,6 +383,11 @@ export async function buildApp(
               name: 'openpanel-client-secret',
               description: 'Your OpenPanel client secret. Required for `root` and `read` clients. Optional for `write` clients when the request origin matches the project\'s CORS allowlist.',
             },
+            BearerPAT: {
+              type: 'http',
+              scheme: 'bearer',
+              description: 'Personal Access Token (PAT). Create one in the OpenPanel dashboard under Organization → Tokens. Accepted on `/manage/*` endpoints as an alternative to a root client ID + secret.',
+            },
           },
         },
       },

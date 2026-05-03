@@ -19,7 +19,7 @@ import { validateManageRequest } from '@/utils/auth';
 import { activateRateLimiter } from '@/utils/rate-limiter';
 
 const idParam = z.object({ id: z.string() });
-const manageAuth = [{ ClientId: [], ClientSecret: [] }];
+const manageAuth = [{ ClientId: [], ClientSecret: [] }, { BearerPAT: [] }];
 const zSuccess = z.object({ success: z.literal(true) });
 
 const manageRouter: FastifyPluginAsyncZodOpenApi = async (fastify) => {
