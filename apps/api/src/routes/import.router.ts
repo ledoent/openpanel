@@ -5,6 +5,13 @@ import type { FastifyPluginCallback, FastifyRequest } from 'fastify';
 import { Prisma } from '@openpanel/db';
 
 const importRouter: FastifyPluginCallback = async (fastify) => {
+  // Inject security into every route's OpenAPI schema (read or root client required).
+  fastify.addHook('onRoute', (routeOptions) => {
+    if (routeOptions.schema) {
+      (routeOptions.schema as Record<string, unknown>).security = [{ ClientId: [], ClientSecret: [] }];
+    }
+  });
+
   fastify.addHook('preHandler', async (req: FastifyRequest, reply) => {
     try {
       const client = await validateImportRequest(req.headers);

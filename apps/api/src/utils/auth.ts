@@ -1,6 +1,6 @@
 import { verifyPassword } from '@openpanel/common/server';
 import type { IServiceClientWithProject } from '@openpanel/db';
-import { ClientType, getClientByIdCached } from '@openpanel/db';
+import { ClientType, PAT_PREFIX, getClientByIdCached, validatePersonalAccessToken } from '@openpanel/db';
 import { getCache } from '@openpanel/redis';
 import type {
   DeprecatedPostEventPayload,
@@ -244,6 +244,28 @@ export async function validateImportRequest(
 export async function validateManageRequest(
   headers: RawRequestDefaultExpression['headers']
 ): Promise<IServiceClientWithProject> {
+  // PAT bearer token path: Authorization: Bearer opat_xxx
+  const bearerToken = (headers['authorization'] as string | undefined)
+    ?.replace(/^Bearer\s+/i, '');
+  if (bearerToken?.startsWith(PAT_PREFIX)) {
+    const pat = await validatePersonalAccessToken(bearerToken);
+    if (!pat) {
+      throw new Error('Manage: Invalid or expired personal access token');
+    }
+    return {
+      id: pat.userId,
+      name: 'PAT',
+      secret: null,
+      type: ClientType.root,
+      projectId: null,
+      organizationId: pat.organizationId,
+      ignoreCorsAndSecret: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      project: null,
+    } as unknown as IServiceClientWithProject;
+  }
+
   const clientId = headers['openpanel-client-id'] as string;
   const clientSecret = (headers['openpanel-client-secret'] as string) || '';
 
