@@ -1,0 +1,233 @@
+# CI for ledoent/openpanel fork
+#
+# deploy branch push  → test → build {api,worker,dashboard} → push to Zot
+# feature/** PR       → test only (no build)
+# workflow_dispatch   → full pipeline against whatever branch triggered it
+#
+# Secrets required:
+#  ZOT_PASSWORD  — robot-ci password for registry.hz.ledoweb.com
+
+name: CI
+
+on:
+  push:
+    branches:
+      - deploy
+    paths-ignore:
+      - "**.md"
+      - "repos.yaml"
+      - ".github/workflows/aggregate.yaml"
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "repos.yaml"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: registry.hz.ledoweb.com
+  REGISTRY_USER: robot-ci
+  IMAGE_API: registry.hz.ledoweb.com/openpanel/api
+  IMAGE_WORKER: registry.hz.ledoweb.com/openpanel/worker
+  IMAGE_DASHBOARD: registry.hz.ledoweb.com/openpanel/dashboard
+
+jobs:
+  # ── Tests ─────────────────────────────────────────────────────────────────
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        ports: ["5432:5432"]
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      clickhouse:
+        image: clickhouse/clickhouse-server:26.1.3.52
+        ports: ["8123:8123"]
+        env:
+          CLICKHOUSE_DB: openpanel
+          CLICKHOUSE_USER: default
+          CLICKHOUSE_PASSWORD: ""
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+        options: >-
+          --health-cmd "wget -qO- http://localhost:8123/ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Codegen
+        run: pnpm codegen
+
+      - name: Migrate
+        run: pnpm migrate:deploy
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres?schema=public
+          DATABASE_URL_DIRECT: postgresql://postgres:postgres@localhost:5432/postgres?schema=public
+          CLICKHOUSE_URL: http://localhost:8123/openpanel
+          SELF_HOSTED: "true"
+
+      - name: Test
+        run: pnpm test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres?schema=public
+          CLICKHOUSE_URL: http://localhost:8123/openpanel
+          REDIS_URL: redis://localhost:6379
+
+  # ── Image builds (deploy branch or manual only) ───────────────────────────
+  build-api:
+    if: github.ref == 'refs/heads/deploy' || github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: hetzner-k3s-ledoent
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to Zot
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.REGISTRY_USER }}
+          password: ${{ secrets.ZOT_PASSWORD }}
+
+      - id: tag
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_API }}:${{ steps.tag.outputs.tag }}
+            ${{ github.ref == 'refs/heads/deploy' && format('{0}:latest', env.IMAGE_API) || '' }}
+          build-args: |
+            DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+  build-worker:
+    if: github.ref == 'refs/heads/deploy' || github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: hetzner-k3s-ledoent
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to Zot
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.REGISTRY_USER }}
+          password: ${{ secrets.ZOT_PASSWORD }}
+
+      - id: tag
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/worker/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_WORKER }}:${{ steps.tag.outputs.tag }}
+            ${{ github.ref == 'refs/heads/deploy' && format('{0}:latest', env.IMAGE_WORKER) || '' }}
+          build-args: |
+            DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
+          cache-from: type=gha,scope=worker
+          cache-to: type=gha,mode=max,scope=worker
+
+  build-dashboard:
+    if: github.ref == 'refs/heads/deploy' || github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: hetzner-k3s-ledoent
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to Zot
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.REGISTRY_USER }}
+          password: ${{ secrets.ZOT_PASSWORD }}
+
+      - id: tag
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/start/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_DASHBOARD }}:${{ steps.tag.outputs.tag }}
+            ${{ github.ref == 'refs/heads/deploy' && format('{0}:latest', env.IMAGE_DASHBOARD) || '' }}
+          build-args: |
+            NO_CLOUDFLARE=1
+          cache-from: type=gha,scope=dashboard
+          cache-to: type=gha,mode=max,scope=dashboard
+
+  # ── Summary ───────────────────────────────────────────────────────────────
+  summary:
+    if: always() && (github.ref == 'refs/heads/deploy' || github.event_name == 'workflow_dispatch')
+    needs: [build-api, build-worker, build-dashboard]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Image tags
+        run: |
+          TAG=${{ needs.build-api.outputs.tag || needs.build-worker.outputs.tag || needs.build-dashboard.outputs.tag }}
+          echo "## Images built" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Service | Image |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| api | \`${{ env.IMAGE_API }}:${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| worker | \`${{ env.IMAGE_WORKER }}:${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| dashboard | \`${{ env.IMAGE_DASHBOARD }}:${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
