@@ -15,6 +15,13 @@ const TAGS = ['Export'] as const;
 const exportRouter: FastifyPluginAsyncZodOpenApi = async (fastify) => {
   await activateRateLimiter({ fastify, max: 100, timeWindow: '10 seconds' });
 
+  // Inject security into every route's OpenAPI schema (read or root client required).
+  fastify.addHook('onRoute', (routeOptions) => {
+    if (routeOptions.schema) {
+      (routeOptions.schema as Record<string, unknown>).security = [{ ClientId: [], ClientSecret: [] }];
+    }
+  });
+
   fastify.addHook('preHandler', async (req: FastifyRequest, reply) => {
     try {
       const client = await validateExportRequest(req.headers);

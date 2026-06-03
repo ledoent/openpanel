@@ -90,7 +90,7 @@ services:
         max-file: "3"
 
   op-api:
-    image: lindesvard/openpanel-api:2
+    image: registry.hz.ledoweb.com/openpanel/api:latest
     restart: always
     command: >
       sh -c "
@@ -120,7 +120,7 @@ services:
         max-file: "3"
 
   op-dashboard:
-    image: lindesvard/openpanel-dashboard:2
+    image: registry.hz.ledoweb.com/openpanel/dashboard:latest
     restart: always
     depends_on:
       op-api:
@@ -140,7 +140,7 @@ services:
         max-file: "3"
 
   op-worker:
-    image: lindesvard/openpanel-worker:2
+    image: registry.hz.ledoweb.com/openpanel/worker:latest
     restart: always
     depends_on:
       op-api:

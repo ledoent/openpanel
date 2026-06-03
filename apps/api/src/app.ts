@@ -11,7 +11,16 @@ import {
   validateSessionToken,
 } from '@openpanel/auth';
 import { generateId } from '@openpanel/common';
-import { type IServiceClientWithProject, runWithAlsSession } from '@openpanel/db';
+import {
+  type IServiceClientWithProject,
+  db,
+  getConversationById,
+  getOrganizationByProjectIdCached,
+  getProjectAccess,
+  getSettingsForProject,
+  runWithAlsSession,
+  validatePersonalAccessToken,
+} from '@openpanel/db';
 import type { AppRouter } from '@openpanel/trpc';
 import { appRouter, createContext } from '@openpanel/trpc';
 import type { FastifyTRPCPluginOptions } from '@trpc/server/adapters/fastify';
@@ -37,13 +46,7 @@ import { timestampHook } from './hooks/timestamp.hook';
 import { toFastifyHandler } from '@better-agent/adapters';
 import { chatApp } from './agents/app';
 import { chatRunContext } from './agents/run-context';
-import {
-  db,
-  getConversationById,
-  getOrganizationByProjectIdCached,
-  getProjectAccess,
-  getSettingsForProject,
-} from '@openpanel/db';
+import patRouter from './routes/pat.router';
 import eventRouter from './routes/event.router';
 import exportRouter from './routes/export.router';
 import gscCallbackRouter from './routes/gsc-callback.router';
@@ -148,6 +151,33 @@ export async function buildApp(
             validateSessionToken(req.cookies.session),
           );
           req.session = session;
+        } catch {
+          req.session = EMPTY_SESSION;
+        }
+      } else if (req.headers.authorization?.startsWith('Bearer opat_')) {
+        try {
+          const token = req.headers.authorization.slice(7);
+          const result = await validatePersonalAccessToken(token);
+          if (result) {
+            const user = await db.user.findUnique({ where: { id: result.userId } });
+            if (user) {
+              req.session = {
+                session: {
+                  id: `pat:${result.userId}`,
+                  userId: result.userId,
+                  expiresAt: new Date(Date.now() + 1000 * 60 * 60),
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                },
+                user,
+                userId: result.userId,
+              };
+            } else {
+              req.session = EMPTY_SESSION;
+            }
+          } else {
+            req.session = EMPTY_SESSION;
+          }
         } catch {
           req.session = EMPTY_SESSION;
         }
@@ -319,6 +349,7 @@ export async function buildApp(
       });
     }
     instance.register(mcpRouter, { prefix: '/mcp' });
+    instance.register(patRouter, { prefix: '/pat' });
   });
 
   // Public API
@@ -336,7 +367,29 @@ export async function buildApp(
           { name: 'Insights', description: 'Query analytics data' },
           { name: 'Manage', description: 'Manage projects and clients' },
           { name: 'Event', description: 'Legacy event ingestion (deprecated, use /track)' },
+          { name: 'PAT', description: 'Personal access tokens (requires browser session)' },
         ],
+        components: {
+          securitySchemes: {
+            ClientId: {
+              type: 'apiKey',
+              in: 'header',
+              name: 'openpanel-client-id',
+              description: 'Your OpenPanel client ID (UUID). Required on all authenticated endpoints.',
+            },
+            ClientSecret: {
+              type: 'apiKey',
+              in: 'header',
+              name: 'openpanel-client-secret',
+              description: 'Your OpenPanel client secret. Required for `root` and `read` clients. Optional for `write` clients when the request origin matches the project\'s CORS allowlist.',
+            },
+            BearerPAT: {
+              type: 'http',
+              scheme: 'bearer',
+              description: 'Personal Access Token (PAT). Create one in the OpenPanel dashboard under Organization → Tokens. Accepted on `/manage/*` endpoints as an alternative to a root client ID + secret.',
+            },
+          },
+        },
       },
       ...fastifyZodOpenApiTransformers,
       transform(args) {

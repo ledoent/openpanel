@@ -24,6 +24,7 @@ const trackRouter: FastifyPluginAsyncZodOpenApi = async (fastify) => {
       tags: ['Track'],
       description:
         'Ingest a tracking event (track, identify, group, increment, decrement, replay).',
+      security: [{ ClientId: [], ClientSecret: [] }, { ClientId: [] }],
       response: {
         200: z.object({
           deviceId: z.string(),
@@ -41,6 +42,7 @@ const trackRouter: FastifyPluginAsyncZodOpenApi = async (fastify) => {
       tags: ['Track'],
       description:
         'Get or generate a stable device ID and session ID for the current visitor.',
+      security: [{ ClientId: [], ClientSecret: [] }, { ClientId: [] }],
       response: {
         200: z.object({
           deviceId: z.string(),
